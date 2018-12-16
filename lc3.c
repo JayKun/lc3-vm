@@ -45,3 +45,94 @@ enum
     FL_ZRO = 1 << 1, /* Z */
     FL_NEG = 1 << 2, /* N */
 };
+
+uint16_t sign_extend(uint16_t x, int bit_count)
+{
+    if((x >> (bit_count - 1)) & 1)
+    {
+        x |= (0xFFFF << bit_count);
+    }
+    return x;
+}
+
+void update_falgs(uint16_t r)
+{
+    if(reg[r] == 0)
+    {
+        reg[R_COND] = FL_ZRO;
+    }
+    else if(reg[r] >> 15)
+    {
+        reg[R_COND] = FL_NEG;
+    }
+    else
+    {
+        reg[R_COND] = FL_POS;
+    }
+}
+
+int main(int argc, const char* argv[])
+{
+    enum { PC_START = 0x3000 };
+    reg[R_PC] = PC_START;
+
+    int running = 1;
+    while(running)
+    {
+        /*Parse Instructions*/
+        uint16_t instr = mem_read(reg[R_PC]++);
+        uint16_t op = instr >> 12;
+
+        switch(op)
+        {
+            case OP_ADD:
+                /* TODO: OP_ADD */
+                break;
+            case OP_AND:
+                /* TODO: OP_AND */
+                break;
+            case OP_NOT:
+                /* TODO: OP_NOT */
+                break;
+            case OP_BR:
+                /* TODO: OP_BR */
+                break;
+            case OP_JMP:
+                /* TODO: OP_JMP */
+                break;
+            case OP_JSR:
+                /* TODO: OP_JSR */
+                break;
+            case OP_LD:
+                /* TODO: OP_LD */
+                break;
+            case OP_LDI:
+                /* TODO: OP_LDI */
+                break;
+            case OP_LDR:
+                /* TODO: OP_LDR */
+                break;
+            case OP_LEA:
+                /* TODO: OP_LEA */
+                break;
+            case OP_ST:
+                /* TODO: OP_ST */
+                break;
+            case OP_STI:
+                /* TODO: OP_STI */
+                break;
+            case OP_STR:
+                /* TODO: OP_STR */
+                break;
+            case OP_TRAP:
+                /* TODO: OP_TRAP */
+                break;
+            case OP_RES:
+                /* TODO: OP_RES */
+            case OP_RTI:
+                /* TODO: OP_RTI */
+            default:
+                break;
+        }
+    }
+}
