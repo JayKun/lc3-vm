@@ -152,6 +152,24 @@ void jump_op(uint16_t instr)
     reg[R_PC] = r1;
 }
 
+/* Jump to subroutine */
+void jsr_op(uint16_t instr)
+{
+    uint16_t offset = sign_extend(instr & 0x7FF, 11);
+    uint16_t flag = (instr >> 11) & 1;
+
+    reg[R_R7] = reg[R_PC];
+    if(flag)
+    {
+        reg[R_PC] += offset;
+    }
+    else
+    {
+        uint16_t r0 = (instr >> 6) & 0x7;
+        reg[R_PC] = reg[r0]
+    }
+}
+
 int main(int argc, const char* argv[])
 {
     enum { PC_START = 0x3000 };
