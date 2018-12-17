@@ -1,4 +1,6 @@
-#define MAX_MEMORY UINT64_MAX
+#include <stdint.h>
+
+#define MAX_MEMORY UINT16_MAX
 #define R_COUNT 10
 
 /* Memory */
@@ -14,8 +16,12 @@ enum
     R_R4,
     R_R5,
     R_R6,
-    R_R7
+    R_R7,
+    R_PC,
+    R_COND
 };
+
+uint16_t reg[R_COUNT];
 
 /* Instruction Set */
 enum
@@ -55,7 +61,7 @@ uint16_t sign_extend(uint16_t x, int bit_count)
     return x;
 }
 
-void update_falgs(uint16_t r)
+void update_flags(uint16_t r)
 {
     if(reg[r] == 0)
     {
@@ -69,6 +75,81 @@ void update_falgs(uint16_t r)
     {
         reg[R_COND] = FL_POS;
     }
+}
+
+void add_op(uint16_t instr)
+{
+    uint16_t rd = (instr >> 9) & 0x7;
+    uint16_t r1 = (instr >> 6) & 0x7;
+    uint16_t flag = (instr >> 5) & 0x1;
+
+    if(flag)
+    {
+        int16_t imm = sign_extend(instr & 0x1F, 5);
+        reg[rd] = reg[r1] + imm; 
+    }
+    else
+    {
+        uint16_t r2 = instr & 0x7;
+        reg[rd] = reg[r1] + reg[r2];   
+    }
+    update_flags(rd);
+}
+
+void and_op(uint16_t instr)
+{
+    uint16_t rd = (instr >> 9) & 0x7;
+    uint16_t r1 = (instr >> 6) & 0x7;
+    uint16_t flag = (instr >> 5) & 0x1;
+
+    if(flag)
+    {
+        uint16_t imm = sign_extend(instr & 0x1F, 5);
+        reg[rd] = reg[r1] + imm;
+    }
+    else
+    {
+        uint16_t r2 = instr & 0x7;
+        reg[rd] = reg[r1] + reg[r2];
+    }
+    update_flags(rd);
+}
+
+void not_op(uint16_t instr)
+{
+    uint16_t rd = (instr >> 9) & 0x7;
+    uint16_t r1 = (instr >> 6) & 0x7;
+    reg[rd] = ~reg[r1];
+    update_flags(rd);
+}
+
+/* Load Indirect Operation */
+void ldi_op(uint16_t instr)
+{
+    /* extend immediate to 16-bits */
+    uint16_t offset = sign_extend(instr & 0x1FF, 9);
+    uint16_t rd = (instr >> 9) & 0x7;
+
+    reg[R_PC] += mem_read(mem_read(reg[R_PC] + offset));
+    update_flags(rd);
+}
+
+/* Branch Operation */
+void branch_op(uint16_t instr)
+{
+    uint16_t offset = sign_extend(instr & 0x1FF, 9);
+    uint16_t cond_flag = (instr >> 9) & 0x7;
+    if(cond_flag & reg[R_COND])
+    {
+        reg[R_PC] += offset;
+    }
+}
+
+/* Jump Operation */
+void jump_op(uint16_t instr)
+{
+    uint16_t r1 = (instr >> 6) & 0x7;
+    reg[R_PC] = r1;
 }
 
 int main(int argc, const char* argv[])
