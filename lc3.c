@@ -78,6 +78,8 @@ void update_flags(uint16_t r)
     }
 }
 
+//----------------------------------------------------------------------------
+/* Arithmetic Operations */
 /* ADD operation */
 void add_op(uint16_t instr)
 {
@@ -127,7 +129,7 @@ void not_op(uint16_t instr)
     update_flags(rd);
 }
 
-
+//----------------------------------------------------------------------------
 /* Branch Operation */
 void branch_op(uint16_t instr)
 {
@@ -139,6 +141,7 @@ void branch_op(uint16_t instr)
     }
 }
 
+//----------------------------------------------------------------------------
 /* Jump Operation */
 void jump_op(uint16_t instr)
 {
@@ -164,6 +167,7 @@ void jsr_op(uint16_t instr)
     }
 }
 
+//----------------------------------------------------------------------------
 /* Load Indirect Operation */
 void ldi_op(uint16_t instr)
 {
@@ -205,6 +209,7 @@ void ldr_op(uint16_t instr)
     update_flags(rd);
 }
 
+//----------------------------------------------------------------------------
 /* Return operations */
 /* ret operation */
 void ret_op(uint16_t instr)
@@ -215,9 +220,10 @@ void ret_op(uint16_t instr)
 /* rti operation */
 void rti_op(uint16_t instr)
 {
-
+    /* TODO: Return from interrupt operation */
 }
 
+//----------------------------------------------------------------------------
 /* Store operations */
 /* Store indirect operation */
 void sti_op(uint16_t instr)
@@ -237,6 +243,24 @@ void store_op(uint16_t instr)
     mem_write(reg[br] + offset, reg[sr]);
 }
 
+//----------------------------------------------------------------------------
+void trap_op(uint16_t instr)
+{
+    switch(instr & 0xFF)
+    {
+        case TRAP_GETC:
+            // TODO
+            break;
+        case TRAP_OUT:
+        case TRAP_PUTS:
+        case TRAP_IN:
+        case TRAP_PUTSP:
+        case TRAP_HALT:
+        default:
+            printf("Trap vector undefiend");
+    }
+}
+
 int main(int argc, const char* argv[])
 {
     enum { PC_START = 0x3000 };
@@ -252,51 +276,51 @@ int main(int argc, const char* argv[])
         switch(op)
         {
             case OP_ADD:
-                /* TODO: OP_ADD */
+                add_op(instr);
                 break;
             case OP_AND:
-                /* TODO: OP_AND */
+                and_op(instr);
                 break;
             case OP_NOT:
-                /* TODO: OP_NOT */
+                not_op(instr);
                 break;
             case OP_BR:
-                /* TODO: OP_BR */
+                or_op(instr);
                 break;
             case OP_JMP:
-                /* TODO: OP_JMP */
+                jmp_op(instr);
                 break;
             case OP_JSR:
-                /* TODO: OP_JSR */
+                jsr_op(instr);
                 break;
             case OP_LD:
-                /* TODO: OP_LD */
+                ld_op(instr);
                 break;
             case OP_LDI:
-                /* TODO: OP_LDI */
+                ldi_op(instr);
                 break;
             case OP_LDR:
-                /* TODO: OP_LDR */
+                ldr_op(instr);
                 break;
             case OP_LEA:
-                /* TODO: OP_LEA */
+                lea_op(instr);
                 break;
             case OP_ST:
-                /* TODO: OP_ST */
+                st_op(instr);
                 break;
             case OP_STI:
-                /* TODO: OP_STI */
+                sti_op(instr);
                 break;
             case OP_STR:
-                /* TODO: OP_STR */
+                str_op(instr);
                 break;
             case OP_TRAP:
-                /* TODO: OP_TRAP */
+                trap_op(instr);
                 break;
             case OP_RES:
-                /* TODO: OP_RES */
+                // res_op(instr);
             case OP_RTI:
-                /* TODO: OP_RTI */
+                rti_op(instr);
             default:
                 break;
         }
