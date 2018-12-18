@@ -61,6 +61,7 @@ uint16_t sign_extend(uint16_t x, int bit_count)
     return x;
 }
 
+/* Update conditional flags */
 void update_flags(uint16_t r)
 {
     if(reg[r] == 0)
@@ -77,6 +78,7 @@ void update_flags(uint16_t r)
     }
 }
 
+/* ADD operation */
 void add_op(uint16_t instr)
 {
     uint16_t rd = (instr >> 9) & 0x7;
@@ -96,6 +98,7 @@ void add_op(uint16_t instr)
     update_flags(rd);
 }
 
+/* AND operation */
 void and_op(uint16_t instr)
 {
     uint16_t rd = (instr >> 9) & 0x7;
@@ -115,6 +118,7 @@ void and_op(uint16_t instr)
     update_flags(rd);
 }
 
+/* NOT operation */
 void not_op(uint16_t instr)
 {
     uint16_t rd = (instr >> 9) & 0x7;
@@ -168,6 +172,36 @@ void jsr_op(uint16_t instr)
         uint16_t r0 = (instr >> 6) & 0x7;
         reg[R_PC] = reg[r0]
     }
+}
+
+/* LEA operation */
+void lea_op(uint16_t instr)
+{
+    uint16_t rd = (instr >> 9) & 0x7;
+    uint16_t offset = sign_extend(instr & 0x1FF, 9);
+    reg[rd] = reg[R_PC] + offset;
+    update_flags(rd);     
+}
+
+/* Load operation */
+void load_op(uint16_t instr)
+{
+    uint16_t rd = (instr >> 9) & 0x7;
+    uint16_t offset = sign_extend(instr & 0x1FF, 9);
+    
+    reg[rd] = mem_read(reg[PC] + offset);
+    update_flags(rd);
+}
+
+/* Ldr operation */
+void ldr_op(uint16_t instr)
+{
+    uint16_t rd = (instr >> 9) & 0x7;
+    uint16_t rb = (instr >> 6) & 0x7;
+    uint16_t offset = sign_extend(instr & 0x3F, 9);
+    
+    reg[rd] = mem_read(reg[rb] + offset);
+    update_flags(rd);
 }
 
 int main(int argc, const char* argv[])
