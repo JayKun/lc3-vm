@@ -127,16 +127,6 @@ void not_op(uint16_t instr)
     update_flags(rd);
 }
 
-/* Load Indirect Operation */
-void ldi_op(uint16_t instr)
-{
-    /* extend immediate to 16-bits */
-    uint16_t offset = sign_extend(instr & 0x1FF, 9);
-    uint16_t rd = (instr >> 9) & 0x7;
-
-    reg[R_PC] += mem_read(mem_read(reg[R_PC] + offset));
-    update_flags(rd);
-}
 
 /* Branch Operation */
 void branch_op(uint16_t instr)
@@ -174,6 +164,17 @@ void jsr_op(uint16_t instr)
     }
 }
 
+/* Load Indirect Operation */
+void ldi_op(uint16_t instr)
+{
+    /* extend immediate to 16-bits */
+    uint16_t offset = sign_extend(instr & 0x1FF, 9);
+    uint16_t rd = (instr >> 9) & 0x7;
+
+    reg[R_PC] += mem_read(mem_read(reg[R_PC] + offset));
+    update_flags(rd);
+}
+
 /* LEA operation */
 void lea_op(uint16_t instr)
 {
@@ -202,6 +203,38 @@ void ldr_op(uint16_t instr)
     
     reg[rd] = mem_read(reg[rb] + offset);
     update_flags(rd);
+}
+
+/* Return operations */
+/* ret operation */
+void ret_op(uint16_t instr)
+{
+    reg[R_PC] = reg[R_R7];
+}
+
+/* rti operation */
+void rti_op(uint16_t instr)
+{
+
+}
+
+/* Store operations */
+/* Store indirect operation */
+void sti_op(uint16_t instr)
+{
+    uint16_t offset = sign_extend(instr & 0x1FF, 9);
+    uint16_t sr = (instr >> 9) & 0x7;
+    mem_write(reg[sr], reg[R_PC] + offset);
+}
+
+/* Store operation */
+void store_op(uint16_t instr)
+{
+    uint16_t offset = sign_extend(instr & 0x3F, 6);
+    uint16_t br = (instr >> 6) & 0x7;
+    uint16_t sr = (instr >> 9) & 0x7;
+
+    mem_write(reg[br] + offset, reg[sr]);
 }
 
 int main(int argc, const char* argv[])
