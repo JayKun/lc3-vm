@@ -78,6 +78,35 @@ void update_flags(uint16_t r)
     }
 }
 
+/* Populate memory with file containing assembly instructions */
+void read_image_file(FILE* file)
+{
+    /* the origin tells us where in memory to place the image */
+    uint16_t origin;
+    fread(&origin, sizeof(origin), 1, file);
+    origin = swap16(origin);
+
+    /* we know the maximum file size so we only need one fread */
+    uint16_t max_read = UINT16_MAX - origin;
+    uint16_t* p = memory + origin;
+    size_t read = fread(p, sizeof(uint16_t), max_read, file);
+
+    /* swap to little endian */
+    while (read-- > 0)
+    {
+        *p = swap16(*p);
+        ++p;
+    }
+}
+
+int read_image(const char* image_path)
+{
+    FILE* file = fopen(image_path, "rb");
+    if (!file) { return 0; };
+    read_image_file(file);
+    fclose(file);
+    return 1;
+}
 //----------------------------------------------------------------------------
 /* Arithmetic Operations */
 /* ADD operation */
@@ -244,17 +273,92 @@ void store_op(uint16_t instr)
 }
 
 //----------------------------------------------------------------------------
-void trap_op(uint16_t instr)
+// Trap Operations
+//----------------------------------------------------------------------------
+void trap_puts()
+{
+    uint16_t* c = memory + reg[R_R0];
+    
+    // Terminates once c is null-terminated
+    while(*c)
+    {
+        putc((char)*c, stdout);
+        c++;
+    }
+
+    // Flushes the stream
+    fflush(stdout);
+}
+
+// Trap to read a single ASCII character
+void trap_getc()
+{
+    reg[R_R0] = (uint16_t)getchar();
+}
+
+// Trap to output a single ASCII character
+void trap_out()
+{
+    putc((char)reg[R_R0], stdout);
+}
+
+// Trap to output a string
+void trap_putsp()
+{
+    // Address of first character in string is first stored in R0
+    uint16_t* c = memory + reg[R0];
+    while(*c)
+    {
+        putc((char)*c++, stdout);
+    }
+    fflush(stdout);
+}
+
+// Prompt for input character
+void trap_in()
+{
+    printf("Enter a character:");
+    reg[R_R0] = (uint16_t)getchar();
+}
+
+void trap_putsp()
+{
+    uint16_t* c = memory + reg[R_R0];
+    while(*c)
+    {
+        char char1 = (*c) & 0xFF;
+        putc(char1, stdout);
+        char char2 = (*c) >> 8;
+        if(char2) putc(char2, stdout) c++;
+    }
+    fflush(stdout);
+}
+
+void trap_halt()
+{
+    puts("HALT");
+    fflush(stdout);
+    running = 0;
+}
+
+//----------------------------------------------------------------------------
+void trap_op(uint16_t& instr)
 {
     switch(instr & 0xFF)
     {
         case TRAP_GETC:
-            // TODO
+            trap_getc();
             break;
         case TRAP_OUT:
+            trap_out();
+            break;
         case TRAP_PUTS:
+            trap_puts();
+            break;
         case TRAP_IN:
+            trap_in();
         case TRAP_PUTSP:
+            trap_putsp();
         case TRAP_HALT:
         default:
             printf("Trap vector undefiend");
