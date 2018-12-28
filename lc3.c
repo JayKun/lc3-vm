@@ -472,6 +472,7 @@ int main(int argc, const char* argv[])
     signal(SIGINT, handle_interrupt);
     disable_input_buffering();
     enum { PC_START = 0x3000 };
+
     reg[R_PC] = PC_START;
 
     if (argc < 2)
