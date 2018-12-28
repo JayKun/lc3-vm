@@ -1,7 +1,21 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+#include <signal.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/termios.h>
+#include <sys/mman.h>
 
 #define MAX_MEMORY UINT16_MAX
 #define R_COUNT 10
+
+/* Running flag variable */
+int running = 1;
 
 /* Memory */
 uint16_t memory[MAX_MEMORY];
@@ -44,6 +58,17 @@ enum
     OP_TRAP    /* execute trap */
 };
 
+/* Trap Codes */
+enum
+{
+    TRAP_GETC = 0x20,  /* get character from keyboard */
+    TRAP_OUT = 0x21,   /* output a character */
+    TRAP_PUTS = 0x22,  /* output a word string */
+    TRAP_IN = 0x23,    /* input a string */
+    TRAP_PUTSP = 0x24, /* output a byte string */
+    TRAP_HALT = 0x25   /* halt the program */
+};
+
 /* Conditional Flags */
 enum
 {
@@ -78,6 +103,55 @@ void update_flags(uint16_t r)
     }
 }
 
+uint16_t swap16(uint16_t x)
+{
+    return (x << 8) | (x >> 8);
+}
+
+/* Memory Operations */
+/* Memory-mapped registers */
+enum
+{
+    MR_KBSR = 0xFE00, /* Keyboard Status */
+    MR_KBDR = 0xFE02 /* Keyboard Data */
+};
+
+uint16_t check_key()
+{
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(STDIN_FILENO, &readfds);
+    
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0;
+    return select(1, &readfds, NULL, NULL, &timeout) != 0;   
+}
+
+/* Write memory */
+void mem_write(uint16_t address, uint16_t val)
+{
+    memory[address] = val;
+}
+
+/* Read memory */
+uint16_t mem_read(uint16_t address)
+{
+    if(address == MR_KBSR)
+    {
+        if(check_key())
+        {
+            memory[MR_KBSR] = (1 << 15);
+            memory[MR_KBDR] = getchar();
+        }
+    }
+    else
+    {
+        memory[MR_KBSR] = 0;
+    }
+    return memory[address];
+}
+
 /* Populate memory with file containing assembly instructions */
 void read_image_file(FILE* file)
 {
@@ -107,6 +181,7 @@ int read_image(const char* image_path)
     fclose(file);
     return 1;
 }
+
 //----------------------------------------------------------------------------
 /* Arithmetic Operations */
 /* ADD operation */
@@ -160,7 +235,7 @@ void not_op(uint16_t instr)
 
 //----------------------------------------------------------------------------
 /* Branch Operation */
-void branch_op(uint16_t instr)
+void br_op(uint16_t instr)
 {
     uint16_t offset = sign_extend(instr & 0x1FF, 9);
     uint16_t cond_flag = (instr >> 9) & 0x7;
@@ -172,7 +247,7 @@ void branch_op(uint16_t instr)
 
 //----------------------------------------------------------------------------
 /* Jump Operation */
-void jump_op(uint16_t instr)
+void jmp_op(uint16_t instr)
 {
     uint16_t r1 = (instr >> 6) & 0x7;
     reg[R_PC] = r1;
@@ -192,7 +267,7 @@ void jsr_op(uint16_t instr)
     else
     {
         uint16_t r0 = (instr >> 6) & 0x7;
-        reg[R_PC] = reg[r0]
+        reg[R_PC] = reg[r0];
     }
 }
 
@@ -218,12 +293,12 @@ void lea_op(uint16_t instr)
 }
 
 /* Load operation */
-void load_op(uint16_t instr)
+void ld_op(uint16_t instr)
 {
     uint16_t rd = (instr >> 9) & 0x7;
     uint16_t offset = sign_extend(instr & 0x1FF, 9);
     
-    reg[rd] = mem_read(reg[PC] + offset);
+    reg[rd] = mem_read(reg[R_PC] + offset);
     update_flags(rd);
 }
 
@@ -250,6 +325,7 @@ void ret_op(uint16_t instr)
 void rti_op(uint16_t instr)
 {
     /* TODO: Return from interrupt operation */
+    return;
 }
 
 //----------------------------------------------------------------------------
@@ -263,13 +339,22 @@ void sti_op(uint16_t instr)
 }
 
 /* Store operation */
-void store_op(uint16_t instr)
+void st_op(uint16_t instr)
 {
     uint16_t offset = sign_extend(instr & 0x3F, 6);
     uint16_t br = (instr >> 6) & 0x7;
     uint16_t sr = (instr >> 9) & 0x7;
 
     mem_write(reg[br] + offset, reg[sr]);
+}
+
+/* Store register operation */
+void str_op(uint16_t instr)
+{
+    uint16_t r0 = (instr >> 9) & 0x7;
+    uint16_t r1 = (instr >> 6) & 0x7;
+    uint16_t offset = sign_extend(instr & 0x3F, 6);
+    mem_write(reg[r1] + offset, reg[r0]);
 }
 
 //----------------------------------------------------------------------------
@@ -302,18 +387,6 @@ void trap_out()
     putc((char)reg[R_R0], stdout);
 }
 
-// Trap to output a string
-void trap_putsp()
-{
-    // Address of first character in string is first stored in R0
-    uint16_t* c = memory + reg[R0];
-    while(*c)
-    {
-        putc((char)*c++, stdout);
-    }
-    fflush(stdout);
-}
-
 // Prompt for input character
 void trap_in()
 {
@@ -329,7 +402,11 @@ void trap_putsp()
         char char1 = (*c) & 0xFF;
         putc(char1, stdout);
         char char2 = (*c) >> 8;
-        if(char2) putc(char2, stdout) c++;
+        if(char2)
+        {
+            putc(char2, stdout);
+            c++;
+        }
     }
     fflush(stdout);
 }
@@ -342,7 +419,7 @@ void trap_halt()
 }
 
 //----------------------------------------------------------------------------
-void trap_op(uint16_t& instr)
+void trap_op(uint16_t instr)
 {
     switch(instr & 0xFF)
     {
@@ -370,7 +447,6 @@ int main(int argc, const char* argv[])
     enum { PC_START = 0x3000 };
     reg[R_PC] = PC_START;
 
-    int running = 1;
     while(running)
     {
         /*Parse Instructions*/
@@ -389,7 +465,7 @@ int main(int argc, const char* argv[])
                 not_op(instr);
                 break;
             case OP_BR:
-                or_op(instr);
+                br_op(instr);
                 break;
             case OP_JMP:
                 jmp_op(instr);
@@ -426,6 +502,7 @@ int main(int argc, const char* argv[])
             case OP_RTI:
                 rti_op(instr);
             default:
+                running = 0;
                 break;
         }
     }
