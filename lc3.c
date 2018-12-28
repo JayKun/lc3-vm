@@ -21,6 +21,8 @@ int running = 1;
 uint16_t memory[MAX_MEMORY];
 
 /* Registers */
+uint16_t reg[R_COUNT];
+
 enum
 {
     R_R0 = 0,
@@ -34,8 +36,6 @@ enum
     R_PC,
     R_COND
 };
-
-uint16_t reg[R_COUNT];
 
 /* Instruction Set */
 enum
@@ -214,7 +214,7 @@ void and_op(uint16_t instr)
     if(flag)
     {
         uint16_t imm = sign_extend(instr & 0x1F, 5);
-        reg[rd] = reg[r1] + imm;
+        reg[rd] = reg[r1] & imm;
     }
     else
     {
@@ -250,7 +250,7 @@ void br_op(uint16_t instr)
 void jmp_op(uint16_t instr)
 {
     uint16_t r1 = (instr >> 6) & 0x7;
-    reg[R_PC] = r1;
+    reg[R_PC] = reg[r1];
 }
 
 /* Jump to subroutine */
@@ -307,7 +307,7 @@ void ldr_op(uint16_t instr)
 {
     uint16_t rd = (instr >> 9) & 0x7;
     uint16_t rb = (instr >> 6) & 0x7;
-    uint16_t offset = sign_extend(instr & 0x3F, 9);
+    uint16_t offset = sign_extend(instr & 0x3F, 6);
     
     reg[rd] = mem_read(reg[rb] + offset);
     update_flags(rd);
@@ -335,17 +335,15 @@ void sti_op(uint16_t instr)
 {
     uint16_t offset = sign_extend(instr & 0x1FF, 9);
     uint16_t sr = (instr >> 9) & 0x7;
-    mem_write(reg[sr], reg[R_PC] + offset);
+    mem_write(mem_read(reg[R_PC] + offset), reg[sr]);
 }
 
 /* Store operation */
 void st_op(uint16_t instr)
 {
-    uint16_t offset = sign_extend(instr & 0x3F, 6);
-    uint16_t br = (instr >> 6) & 0x7;
-    uint16_t sr = (instr >> 9) & 0x7;
-
-    mem_write(reg[br] + offset, reg[sr]);
+    uint16_t r0 = (instr >> 9) & 0x7;
+    uint16_t offset = sign_extend(instr & 0x1FF, 9);
+    mem_write(reg[R_PC] + offset, reg[r0]);
 }
 
 /* Store register operation */
@@ -385,6 +383,7 @@ void trap_getc()
 void trap_out()
 {
     putc((char)reg[R_R0], stdout);
+    fflush(stdout);
 }
 
 // Prompt for input character
@@ -405,8 +404,8 @@ void trap_putsp()
         if(char2)
         {
             putc(char2, stdout);
-            c++;
         }
+        c++;
     }
     fflush(stdout);
 }
@@ -434,18 +433,62 @@ void trap_op(uint16_t instr)
             break;
         case TRAP_IN:
             trap_in();
+            break;
         case TRAP_PUTSP:
             trap_putsp();
+            break;
         case TRAP_HALT:
+            trap_halt();
+            break;
         default:
             printf("Trap vector undefiend");
     }
 }
 
+struct termios original_tio;
+
+void disable_input_buffering()
+{
+    tcgetattr(STDIN_FILENO, &original_tio);
+    struct termios new_tio = original_tio;
+    new_tio.c_lflag &= ~ICANON & ~ECHO;
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_tio);
+}
+
+void restore_input_buffering()
+{
+    tcsetattr(STDIN_FILENO, TCSANOW, &original_tio);
+}
+
+void handle_interrupt(int signal)
+{
+    restore_input_buffering();
+    printf("\n");
+    exit(-2);
+}
+
 int main(int argc, const char* argv[])
 {
+    signal(SIGINT, handle_interrupt);
+    disable_input_buffering();
     enum { PC_START = 0x3000 };
     reg[R_PC] = PC_START;
+
+    if (argc < 2)
+    {
+        /* show usage string */
+        printf("lc3 [image-file1] ...\n");
+        exit(2);
+    }
+
+    for (int j = 1; j < argc; ++j)
+    {
+        if (!read_image(argv[j]))
+        {
+            printf("failed to load image: %s\n", argv[j]);
+            exit(1);
+        }
+    }
 
     while(running)
     {
@@ -506,4 +549,5 @@ int main(int argc, const char* argv[])
                 break;
         }
     }
+    restore_input_buffering();
 }
